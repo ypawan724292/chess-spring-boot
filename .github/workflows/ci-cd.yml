@@ -1,0 +1,69 @@
+name: CI/CD Multi-Module with Paketo to Azure (Chess)
+
+on:
+  push:
+    branches:
+      - main
+      - staging
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    env:
+      ACR_NAME: myacr
+      RESOURCE_GROUP: my-resource-group
+      AKS_CLUSTER_NAME: my-aks
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Log in to ACR
+        run: az acr login --name $ACR_NAME
+
+      - name: Set Environment Variables
+        run: |
+          if [[ "${GITHUB_REF_NAME}" == "main" ]]; then
+            echo "ENV=prod" >> $GITHUB_ENV
+            echo "TAG=prod-${GITHUB_SHA::7}" >> $GITHUB_ENV
+          else
+            echo "ENV=staging" >> $GITHUB_ENV
+            echo "TAG=staging-${GITHUB_SHA::7}" >> $GITHUB_ENV
+          fi
+
+      - name: Build & Push Images (Paketo)
+        run: |
+          ./gradlew :user-service:bootBuildImage \
+            --imageName=$ACR_NAME.azurecr.io/user-service:$TAG \
+            --publishImage
+          ./gradlew :results-service:bootBuildImage \
+            --imageName=$ACR_NAME.azurecr.io/results-service:$TAG \
+            --publishImage
+          ./gradlew :move-service:bootBuildImage \
+            --imageName=$ACR_NAME.azurecr.io/move-service:$TAG \
+            --publishImage
+          ./gradlew :match-making-service:bootBuildImage \
+            --imageName=$ACR_NAME.azurecr.io/match-making-service:$TAG \
+            --publishImage
+          
+
+      - name: Deploy to AKS
+        run: |
+          az aks get-credentials \
+            --resource-group $RESOURCE_GROUP \
+            --name $AKS_CLUSTER_NAME
+
+          kubectl set image deployment/user-service user-service=$ACR_NAME.azurecr.io/user-service:$TAG -n $ENV
+          kubectl set image deployment/move-service feed-service=$ACR_NAME.azurecr.io/move-service:$TAG -n $ENV
+          kubectl set image deployment/results-service matching-service=$ACR_NAME.azurecr.io/results-service:$TAG -n $ENV
+          kubectl set image deployment/match-making-service matching-service=$ACR_NAME.azurecr.io/match-making-service:$TAG -n $ENV
