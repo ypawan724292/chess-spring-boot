@@ -24,4 +24,11 @@ subprojects {
             }
         }
     }
+
+    // run the buildpacks for building images
+    plugins.withId("org.springframework.boot") {
+        tasks.named<org.springframework.boot.gradle.tasks.bundling.BootBuildImage>("bootBuildImage") {
+            builder.set("paketobuildpacks/builder:base")
+        }
+    }
 }
