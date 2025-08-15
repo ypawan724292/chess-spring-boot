@@ -55,15 +55,15 @@ jobs:
               -Dspring-boot.build-image.pullPolicy=IF_NOT_PRESENT
           done
 
-      - name: Get AKS Credentials
+      - name: Get AKS Credentials & Create Namespace
         run: |
+          # Get cluster credentials
           az aks get-credentials \
             --resource-group $RESOURCE_GROUP \
             --name $AKS_CLUSTER_NAME
 
-      - name: Create Namespace if not exist
-        run: |
-          kubectl get namespace $ENV || kubectl create namespace $ENV
+          # Ensure namespace exists
+          kubectl get namespace $ENV >/dev/null 2>&1 || kubectl create namespace $ENV
 
       - name: Deploy to AKS
         run: |
