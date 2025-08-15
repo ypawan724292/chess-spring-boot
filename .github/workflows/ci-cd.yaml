@@ -54,7 +54,10 @@ jobs:
       - name: Create Namespace if not exist
         run: |
           kubectl get namespace $ENV || kubectl create namespace $ENV
-    
+
+      - name: Docker Login to ACR
+        run: echo ${{ secrets.ACR_PASSWORD }} | docker login ${{ secrets.ACR_NAME }}.azurecr.io -u ${{ secrets.ACR_NAME }} --password-stdin
+
 
       - name: Build & Push Images (Paketo)
         run: |
