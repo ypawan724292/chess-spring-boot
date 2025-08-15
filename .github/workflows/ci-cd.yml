@@ -18,6 +18,8 @@ jobs:
       RESOURCE_GROUP: ${{ secrets.AKS_RESOURCE_GROUP }}
       AKS_CLUSTER_NAME: ${{ secrets.AKS_CLUSTER_NAME }}
       SERVICES: "user-service results-service move-service match-making-service"
+      # Directory where your deployment YAML files are stored
+      K8S_DEPLOYMENT_PATH: "k8s"
 
     steps:
       - name: Checkout Code
@@ -65,10 +67,19 @@ jobs:
           # Ensure namespace exists
           kubectl get namespace $ENV >/dev/null 2>&1 || kubectl create namespace $ENV
 
-      - name: Deploy to AKS
+      - name: Create or Update Deployments
         run: |
           for SERVICE in $SERVICES; do
-            kubectl set image deployment/$SERVICE $SERVICE=$ACR_NAME.azurecr.io/$SERVICE:$TAG -n $ENV
+            # Replace placeholder image and tag with dynamic values
+            # Assumes your YAML files are named like 'user-service-deployment.yaml'
+            sed "s|DOCKER_IMAGE_PLACEHOLDER|$ACR_NAME.azurecr.io/$SERVICE|g; s|TAG_PLACEHOLDER|$TAG|g" \
+              $K8S_DEPLOYMENT_PATH/$SERVICE-deployment.yaml > temp-deployment.yaml
+
+            # Apply the updated YAML file to the cluster
+            kubectl apply -f temp-deployment.yaml -n $ENV
+
+            # Clean up the temporary file
+            rm temp-deployment.yaml
           done
 
       - name: Verify Deployment Rollout
