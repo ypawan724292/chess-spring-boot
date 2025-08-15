@@ -49,6 +49,11 @@ jobs:
         run: |
           kubectl get namespace $ENV || kubectl create namespace $ENV
 
+      - name: Get AKS Credentials
+        run: |
+          az aks get-credentials \
+            --resource-group $RESOURCE_GROUP \
+            --name $AKS_CLUSTER_NAME
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -68,11 +73,7 @@ jobs:
             --imageName=$ACR_NAME.azurecr.io/match-making-service:$TAG \
             --publishImage
 
-      - name: Get AKS Credentials
-        run: |
-          az aks get-credentials \
-            --resource-group $RESOURCE_GROUP \
-            --name $AKS_CLUSTER_NAME
+     
 
       - name: Deploy to AKS
         run: |
