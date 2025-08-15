@@ -76,5 +76,5 @@ jobs:
       - name: Verify Deployment Rollout
         run: |
           for SERVICE in user-service results-service move-service match-making-service; do
-            kubectl rollout status deployment/user-service -n $ENV
+            kubectl rollout status deployment/$$SERVICE -n $ENV
           done
