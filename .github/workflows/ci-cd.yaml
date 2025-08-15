@@ -7,7 +7,7 @@ on:
       - staging
 
 env:
-  ACR_NAME: yourregistryname       # without .azurecr.io
+  ACR_NAME: ${{ secrets.ACR_NAME }}       # without .azurecr.io
   IMAGE_TAG: ${{ github.sha }}
   SERVICES: "user-service results-service move-service match-making-service"
 
