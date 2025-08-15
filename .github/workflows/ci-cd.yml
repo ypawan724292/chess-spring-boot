@@ -50,6 +50,9 @@ jobs:
           kubectl create namespace prod || true
           kubectl create namespace staging || true
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build & Push Images (Paketo)
         run: |
           ./gradlew :user-service:bootBuildImage \
