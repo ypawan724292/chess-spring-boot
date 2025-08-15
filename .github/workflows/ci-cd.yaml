@@ -33,9 +33,9 @@ jobs:
       - name: Build and Push Images
         run: |
           for SERVICE in $SERVICES; do
-            echo "Building $SERVICE ..."
             IMAGE=$ACR_NAME.azurecr.io/$SERVICE:$IMAGE_TAG
-            docker build -t $IMAGE ./$SERVICE
+            ./gradlew :$SERVICE:bootBuildImage \
+              -Dspring-boot.build-image.imageName=$IMAGE
             docker push $IMAGE
             echo "$SERVICE=$IMAGE" >> $GITHUB_ENV
           done
