@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: move-service-deployment
+  name: move-service
   labels:
     app: move-service
 spec:

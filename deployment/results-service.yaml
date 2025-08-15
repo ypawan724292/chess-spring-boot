@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: results-service-deployment
+  name: results-service
   labels:
     app: results-service
 spec:

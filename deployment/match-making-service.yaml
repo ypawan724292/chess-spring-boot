@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: match-making-service-deployment
+  name: match-making-service
   labels:
     app: match-making-service
 spec:
