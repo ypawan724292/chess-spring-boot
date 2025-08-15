@@ -1,72 +1,89 @@
-name: Build and Deploy Multi-Services to AKS
+name: CI/CD Multi-Module with Paketo to Azure (Chess)
 
 on:
   push:
     branches:
       - main
       - staging
-
-env:
-  ACR_NAME: ${{ secrets.ACR_NAME }}       # without .azurecr.io
-  IMAGE_TAG: ${{ github.sha }}
-  SERVICES: "user-service results-service move-service match-making-service"
+  pull_request:
+    branches:
+      - main
+      - staging
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-
+    env:
+      ACR_NAME: ${{ secrets.ACR_NAME }}
+      RESOURCE_GROUP: ${{ secrets.AKS_RESOURCE_GROUP }}
+      AKS_CLUSTER_NAME: ${{ secrets.AKS_CLUSTER_NAME }}
     steps:
-      - name: Checkout repository
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      # Azure login
-      - name: Azure Login
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Log in to Azure
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # ACR login
-      - name: Azure Container Registry Login
+      - name: Log in to ACR
         run: az acr login --name $ACR_NAME
 
-      # Build and Push all service images
-      - name: Build and Push Images
-        run: |
-          for SERVICE in $SERVICES; do
-            IMAGE=$ACR_NAME.azurecr.io/$SERVICE:$IMAGE_TAG
-            ./gradlew :$SERVICE:bootBuildImage \
-              -Dspring-boot.build-image.imageName=$IMAGE
-            docker push $IMAGE
-            echo "$SERVICE=$IMAGE" >> $GITHUB_ENV
-          done
-
-      # Select AKS cluster + namespace based on branch
       - name: Set Environment Variables
         run: |
-          if [[ "${{ github.ref }}" == "refs/heads/staging" ]]; then
-            echo "AKS_RESOURCE_GROUP=staging-rg" >> $GITHUB_ENV
-            echo "AKS_CLUSTER_NAME=staging-aks" >> $GITHUB_ENV
-            echo "NAMESPACE=staging" >> $GITHUB_ENV
-          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "AKS_RESOURCE_GROUP=prod-rg" >> $GITHUB_ENV
-            echo "AKS_CLUSTER_NAME=prod-aks" >> $GITHUB_ENV
-            echo "NAMESPACE=prod" >> $GITHUB_ENV
+          if [[ "${GITHUB_REF_NAME}" == "main" ]]; then
+            echo "ENV=prod" >> $GITHUB_ENV
+            echo "TAG=prod-${GITHUB_SHA::7}" >> $GITHUB_ENV
+          else
+            echo "ENV=staging" >> $GITHUB_ENV
+            echo "TAG=staging-${GITHUB_SHA::7}" >> $GITHUB_ENV
           fi
 
-      # Get AKS credentials
+      - name: Create Namespace if not exist
+        run: |
+          kubectl get namespace $ENV || kubectl create namespace $ENV
+
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & Push Images (Paketo)
+        run: |
+          ./gradlew :user-service:bootBuildImage \
+            --imageName=$ACR_NAME.azurecr.io/user-service:$TAG \
+            --publishImage
+          ./gradlew :results-service:bootBuildImage \
+            --imageName=$ACR_NAME.azurecr.io/results-service:$TAG \
+            --publishImage
+          ./gradlew :move-service:bootBuildImage \
+            --imageName=$ACR_NAME.azurecr.io/move-service:$TAG \
+            --publishImage
+          ./gradlew :match-making-service:bootBuildImage \
+            --imageName=$ACR_NAME.azurecr.io/match-making-service:$TAG \
+            --publishImage
+
       - name: Get AKS Credentials
         run: |
           az aks get-credentials \
-            --resource-group $AKS_RESOURCE_GROUP \
-            --name $AKS_CLUSTER_NAME \
-            --overwrite-existing
+            --resource-group $RESOURCE_GROUP \
+            --name $AKS_CLUSTER_NAME
 
-      # Deploy each service
       - name: Deploy to AKS
         run: |
-          for SERVICE in $SERVICES; do
-            IMAGE=${!SERVICE} # expand from env
-            echo "Deploying $SERVICE with $IMAGE ..."
-            sed "s|DOCKER_IMAGE_PLACEHOLDER|$IMAGE|g" k8s/$SERVICE-deployment.yaml | \
-              kubectl apply -n $NAMESPACE -f -
-          done
+          kubectl set image k8s/user-service user-service=$ACR_NAME.azurecr.io/user-service:$TAG -n $ENV
+          kubectl set image k8s/results-service results-service=$ACR_NAME.azurecr.io/results-service:$TAG -n $ENV
+          kubectl set image k8s/move-service move-service=$ACR_NAME.azurecr.io/move-service:$TAG -n $ENV
+          kubectl set image k8s/match-making-service match-making-service=$ACR_NAME.azurecr.io/match-making-service:$TAG -n $ENV
+
+      - name: Verify Deployment Rollout
+        run: |
+          kubectl rollout status k8s/user-service -n $ENV
+          kubectl rollout status k8s/results-service -n $ENV
+          kubectl rollout status k8s/move-service -n $ENV
+          kubectl rollout status k8s/match-making-service -n $ENV
