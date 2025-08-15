@@ -45,19 +45,17 @@ jobs:
             echo "TAG=staging-${GITHUB_SHA::7}" >> $GITHUB_ENV
           fi
 
-      - name: Create Namespaces if not exist
+      - name: Create Namespace if not exist
         run: |
-          kubectl create namespace prod || true
-          kubectl create namespace staging || true
+          kubectl get namespace $ENV || kubectl create namespace $ENV
 
-      - name: Build & Push Images using Paketo (with Spring Boot Gradle Plugin)
+      - name: Deploy to AKS
         run: |
-          SERVICES=(user-service results-service move-service match-making-service)
-          for SERVICE in "${SERVICES[@]}"; do
-            ./gradlew :$SERVICE:bootBuildImage \
-              -Dspring-boot.build-image.imageName=$ACR_NAME.azurecr.io/$SERVICE:$TAG \
-              -Dspring-boot.build-image.pullPolicy=IF_NOT_PRESENT
+          SERVICES="user-service results-service move-service match-making-service"
+          for SERVICE in $SERVICES; do
+            kubectl set image deployment/$SERVICE $SERVICE=$ACR_NAME.azurecr.io/$SERVICE:$TAG -n $ENV
           done
+
 
       - name: Get AKS Credentials
         run: |
