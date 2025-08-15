@@ -10,9 +10,9 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     env:
-      ACR_NAME: myacr
-      RESOURCE_GROUP: my-resource-group
-      AKS_CLUSTER_NAME: my-aks
+      ACR_NAME: ${{ secrets.ACR_NAME }}
+      RESOURCE_GROUP: ${{ secrets.AKS_RESOURCE_GROUP }}
+      AKS_CLUSTER_NAME: ${{ secrets.AKS_CLUSTER_NAME }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -41,6 +41,11 @@ jobs:
             echo "TAG=staging-${GITHUB_SHA::7}" >> $GITHUB_ENV
           fi
 
+      - name: Create Namespaces if not exist
+        run: |
+          kubectl create namespace prod || true
+          kubectl create namespace staging || true
+
       - name: Build & Push Images (Paketo)
         run: |
           ./gradlew :user-service:bootBuildImage \
@@ -55,15 +60,23 @@ jobs:
           ./gradlew :match-making-service:bootBuildImage \
             --imageName=$ACR_NAME.azurecr.io/match-making-service:$TAG \
             --publishImage
-          
 
-      - name: Deploy to AKS
+      - name: Get AKS Credentials
         run: |
           az aks get-credentials \
             --resource-group $RESOURCE_GROUP \
             --name $AKS_CLUSTER_NAME
 
+      - name: Deploy to AKS
+        run: |
           kubectl set image deployment/user-service user-service=$ACR_NAME.azurecr.io/user-service:$TAG -n $ENV
-          kubectl set image deployment/move-service feed-service=$ACR_NAME.azurecr.io/move-service:$TAG -n $ENV
-          kubectl set image deployment/results-service matching-service=$ACR_NAME.azurecr.io/results-service:$TAG -n $ENV
-          kubectl set image deployment/match-making-service matching-service=$ACR_NAME.azurecr.io/match-making-service:$TAG -n $ENV
+          kubectl set image deployment/results-service results-service=$ACR_NAME.azurecr.io/results-service:$TAG -n $ENV
+          kubectl set image deployment/move-service move-service=$ACR_NAME.azurecr.io/move-service:$TAG -n $ENV
+          kubectl set image deployment/match-making-service match-making-service=$ACR_NAME.azurecr.io/match-making-service:$TAG -n $ENV
+
+      - name: Verify Deployment Rollout
+        run: |
+          kubectl rollout status deployment/user-service -n $ENV
+          kubectl rollout status deployment/results-service -n $ENV
+          kubectl rollout status deployment/move-service -n $ENV
+          kubectl rollout status deployment/match-making-service -n $ENV
