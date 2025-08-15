@@ -1,90 +1,72 @@
-name: CI/CD Multi-Module with Paketo to Azure AKS
+name: Build and Deploy Multi-Services to AKS
 
 on:
   push:
     branches:
       - main
       - staging
-  pull_request:
-    branches:
-      - main
-      - staging
+
+env:
+  ACR_NAME: yourregistryname       # without .azurecr.io
+  IMAGE_TAG: ${{ github.sha }}
+  SERVICES: "user-service results-service move-service match-making-service"
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    env:
-      ACR_NAME: ${{ secrets.ACR_NAME }}
-      RESOURCE_GROUP: ${{ secrets.AKS_RESOURCE_GROUP }}
-      AKS_CLUSTER_NAME: ${{ secrets.AKS_CLUSTER_NAME }}
-      SERVICES: "user-service results-service move-service match-making-service"
-      K8S_DEPLOYMENT_PATH: "k8s"
 
     steps:
-      - name: Checkout Code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-
-      - name: Log in to Azure
+      # Azure login
+      - name: Azure Login
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Log in to ACR
+      # ACR login
+      - name: Azure Container Registry Login
         run: az acr login --name $ACR_NAME
 
+      # Build and Push all service images
+      - name: Build and Push Images
+        run: |
+          for SERVICE in $SERVICES; do
+            echo "Building $SERVICE ..."
+            IMAGE=$ACR_NAME.azurecr.io/$SERVICE:$IMAGE_TAG
+            docker build -t $IMAGE ./services/$SERVICE
+            docker push $IMAGE
+            echo "$SERVICE=$IMAGE" >> $GITHUB_ENV
+          done
+
+      # Select AKS cluster + namespace based on branch
       - name: Set Environment Variables
         run: |
-          if [[ "${GITHUB_REF_NAME}" == "main" ]]; then
-            echo "ENV=prod" >> $GITHUB_ENV
-            echo "TAG=prod-${GITHUB_SHA::7}" >> $GITHUB_ENV
-          else
-            echo "ENV=staging" >> $GITHUB_ENV
-            echo "TAG=staging-${GITHUB_SHA::7}" >> $GITHUB_ENV
+          if [[ "${{ github.ref }}" == "refs/heads/staging" ]]; then
+            echo "AKS_RESOURCE_GROUP=staging-rg" >> $GITHUB_ENV
+            echo "AKS_CLUSTER_NAME=staging-aks" >> $GITHUB_ENV
+            echo "NAMESPACE=staging" >> $GITHUB_ENV
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "AKS_RESOURCE_GROUP=prod-rg" >> $GITHUB_ENV
+            echo "AKS_CLUSTER_NAME=prod-aks" >> $GITHUB_ENV
+            echo "NAMESPACE=prod" >> $GITHUB_ENV
           fi
 
-      - name: Build & Push Images using Paketo (with Spring Boot Gradle Plugin)
+      # Get AKS credentials
+      - name: Get AKS Credentials
         run: |
-          for SERVICE in $SERVICES; do
-            IMAGE="$ACR_NAME.azurecr.io/$SERVICE:$TAG"
-            ./gradlew :$SERVICE:bootBuildImage \
-              -Dspring-boot.build-image.imageName=$IMAGE \
-              -Dspring-boot.build-image.pullPolicy=IF_NOT_PRESENT
-            docker push $IMAGE
-          done
-
-      - name: Get AKS Credentials & Create Namespace
-        run: |
-          # Get cluster credentials
           az aks get-credentials \
-            --resource-group $RESOURCE_GROUP \
-            --name $AKS_CLUSTER_NAME
+            --resource-group $AKS_RESOURCE_GROUP \
+            --name $AKS_CLUSTER_NAME \
+            --overwrite-existing
 
-          # Ensure namespace exists
-          kubectl get namespace $ENV >/dev/null 2>&1 || kubectl create namespace $ENV
-
-      - name: Create or Update Deployments
+      # Deploy each service
+      - name: Deploy to AKS
         run: |
           for SERVICE in $SERVICES; do
-            # Replace placeholder image and tag with dynamic values
-            # Assumes your YAML files are named like 'user-service-deployment.yaml'
-            sed "s|DOCKER_IMAGE_PLACEHOLDER|$ACR_NAME.azurecr.io/$SERVICE|g; s|TAG_PLACEHOLDER|$TAG|g" \
-              $K8S_DEPLOYMENT_PATH/$SERVICE-deployment.yaml > temp-deployment.yaml
-
-            # Apply the updated YAML file to the cluster
-            kubectl apply -f temp-deployment.yaml -n $ENV
-
-            # Clean up the temporary file
-            rm temp-deployment.yaml
-          done
-
-      - name: Verify Deployment Rollout
-        run: |
-          for SERVICE in $SERVICES; do
-            kubectl rollout status deployment/$SERVICE-deployment -n $ENV
+            IMAGE=${!SERVICE} # expand from env
+            echo "Deploying $SERVICE with $IMAGE ..."
+            sed "s|DOCKER_IMAGE_PLACEHOLDER|$IMAGE|g" k8s/$SERVICE-deployment.yaml | \
+              kubectl apply -n $NAMESPACE -f -
           done

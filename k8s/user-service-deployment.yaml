@@ -19,5 +19,3 @@ spec:
           image: DOCKER_IMAGE_PLACEHOLDER:TAG_PLACEHOLDER
           ports:
             - containerPort: 8080
-      imagePullSecrets:
-        - name: acr-secret # Replace with your actual secret name
