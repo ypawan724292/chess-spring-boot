@@ -17,3 +17,15 @@ dependencies {
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
+
+springBoot {
+    buildInfo()
+}
+
+tasks.named<org.springframework.boot.gradle.tasks.bundling.BootBuildImage>("bootBuildImage") {
+    // Use remote builder, no local Docker needed
+    builder.set("paketobuildpacks/builder:base")
+    // This prevents Gradle from trying to connect to local Docker
+    publish.set(true)
+
+}

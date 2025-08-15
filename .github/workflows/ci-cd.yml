@@ -1,4 +1,4 @@
-name: CI/CD Multi-Module with Paketo to Azure (Chess)
+name: CI/CD Multi-Module with Paketo to Azure AKS (Chess)
 
 on:
   push:
@@ -50,35 +50,14 @@ jobs:
           kubectl create namespace prod || true
           kubectl create namespace staging || true
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build & Push Images (Paketo Remote Builder)
+      - name: Build & Push Images using Paketo (with Spring Boot Gradle Plugin)
         run: |
-            # Build & push each service using Paketo remote builder
-            ./gradlew :user-service:bootBuildImage \
-              --imageName=$ACR_NAME.azurecr.io/user-service:$TAG \
-              --publishImage \
-              -Dspring-boot.build-image.skip-cache=true \
-              -Dspring-boot.build-image.builder=paketobuildpacks/builder:base
-            
-            ./gradlew :results-service:bootBuildImage \
-              --imageName=$ACR_NAME.azurecr.io/results-service:$TAG \
-              --publishImage \
-              -Dspring-boot.build-image.skip-cache=true \
-              -Dspring-boot.build-image.builder=paketobuildpacks/builder:base
-            
-            ./gradlew :move-service:bootBuildImage \
-              --imageName=$ACR_NAME.azurecr.io/move-service:$TAG \
-              --publishImage \
-              -Dspring-boot.build-image.skip-cache=true \
-              -Dspring-boot.build-image.builder=paketobuildpacks/builder:base
-            
-            ./gradlew :match-making-service:bootBuildImage \
-              --imageName=$ACR_NAME.azurecr.io/match-making-service:$TAG \
-              --publishImage \
-              -Dspring-boot.build-image.skip-cache=true \
-              -Dspring-boot.build-image.builder=paketobuildpacks/builder:base
+          SERVICES=(user-service results-service move-service match-making-service)
+          for SERVICE in "${SERVICES[@]}"; do
+            ./gradlew :$SERVICE:bootBuildImage \
+              -Dspring-boot.build-image.imageName=$ACR_NAME.azurecr.io/$SERVICE:$TAG \
+              -Dspring-boot.build-image.pullPolicy=IF_NOT_PRESENT
+          done
 
       - name: Get AKS Credentials
         run: |
@@ -88,14 +67,15 @@ jobs:
 
       - name: Deploy to AKS
         run: |
-          kubectl set image deployment/user-service user-service=$ACR_NAME.azurecr.io/user-service:$TAG -n $ENV
-          kubectl set image deployment/results-service results-service=$ACR_NAME.azurecr.io/results-service:$TAG -n $ENV
-          kubectl set image deployment/move-service move-service=$ACR_NAME.azurecr.io/move-service:$TAG -n $ENV
-          kubectl set image deployment/match-making-service match-making-service=$ACR_NAME.azurecr.io/match-making-service:$TAG -n $ENV
+          SERVICES=(user-service results-service move-service match-making-service)
+          for SERVICE in "${SERVICES[@]}"; do
+            kubectl set image deployment/$SERVICE $SERVICE=$ACR_NAME.azurecr.io/$SERVICE:$TAG -n $ENV
+          done
 
       - name: Verify Deployment Rollout
         run: |
-          kubectl rollout status deployment/user-service -n $ENV
-          kubectl rollout status deployment/results-service -n $ENV
-          kubectl rollout status deployment/move-service -n $ENV
-          kubectl rollout status deployment/match-making-service -n $ENV
+          SERVICES=(user-service results-service move-service match-making-service)
+          for SERVICE in "${SERVICES[@]}"; do
+            kubectl rollout status deployment/$SERVICE -n $ENV
+          done
+
