@@ -1,4 +1,4 @@
-name: CI/CD Multi-Module with Paketo to Azure AKS (Chess)
+name: CI/CD Multi-Module with Paketo to Azure AKS
 
 on:
   push:
@@ -18,7 +18,6 @@ jobs:
       RESOURCE_GROUP: ${{ secrets.AKS_RESOURCE_GROUP }}
       AKS_CLUSTER_NAME: ${{ secrets.AKS_CLUSTER_NAME }}
       SERVICES: "user-service results-service move-service match-making-service"
-      # Directory where your deployment YAML files are stored
       K8S_DEPLOYMENT_PATH: "k8s"
 
     steps:
@@ -85,5 +84,5 @@ jobs:
       - name: Verify Deployment Rollout
         run: |
           for SERVICE in $SERVICES; do
-            kubectl rollout status deployment/$SERVICE -n $ENV
+            kubectl rollout status deployment/$SERVICE-deployment -n $ENV
           done

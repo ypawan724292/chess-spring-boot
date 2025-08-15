@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: match-making-service-deployment
+  labels:
+    app: match-making-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: match-making-service
+  template:
+    metadata:
+      labels:
+        app: match-making-service
+    spec:
+      containers:
+        - name: match-making-service-container
+          image: DOCKER_IMAGE_PLACEHOLDER:TAG_PLACEHOLDER
+          ports:
+            - containerPort: 8080
+      imagePullSecrets:
+        - name: acr-secret
