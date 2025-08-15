@@ -53,31 +53,32 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build & Push Images (Paketo)
+      - name: Build & Push Images (Paketo Remote Builder)
         run: |
-            # Optional: clear previous cache volumes (if persisted in CI runners)
-            docker volume rm $(docker volume ls -q | grep pack-cache) || true
-            
-            # Build images with cache disabled (avoids restorer failures)
+            # Build & push each service using Paketo remote builder
             ./gradlew :user-service:bootBuildImage \
               --imageName=$ACR_NAME.azurecr.io/user-service:$TAG \
               --publishImage \
-              -Dspring-boot.build-image.skip-cache=true
+              -Dspring-boot.build-image.skip-cache=true \
+              -Dspring-boot.build-image.builder=paketobuildpacks/builder:base
             
             ./gradlew :results-service:bootBuildImage \
               --imageName=$ACR_NAME.azurecr.io/results-service:$TAG \
               --publishImage \
-              -Dspring-boot.build-image.skip-cache=true
+              -Dspring-boot.build-image.skip-cache=true \
+              -Dspring-boot.build-image.builder=paketobuildpacks/builder:base
             
             ./gradlew :move-service:bootBuildImage \
               --imageName=$ACR_NAME.azurecr.io/move-service:$TAG \
               --publishImage \
-              -Dspring-boot.build-image.skip-cache=true
+              -Dspring-boot.build-image.skip-cache=true \
+              -Dspring-boot.build-image.builder=paketobuildpacks/builder:base
             
             ./gradlew :match-making-service:bootBuildImage \
               --imageName=$ACR_NAME.azurecr.io/match-making-service:$TAG \
               --publishImage \
-              -Dspring-boot.build-image.skip-cache=true
+              -Dspring-boot.build-image.skip-cache=true \
+              -Dspring-boot.build-image.builder=paketobuildpacks/builder:base
 
       - name: Get AKS Credentials
         run: |
