@@ -17,6 +17,9 @@ jobs:
       ACR_NAME: ${{ secrets.ACR_NAME }}
       RESOURCE_GROUP: ${{ secrets.AKS_RESOURCE_GROUP }}
       AKS_CLUSTER_NAME: ${{ secrets.AKS_CLUSTER_NAME }}
+      SERVICES: "user-service results-service move-service match-making-service"
+      # Directory where your deployment YAML files are stored
+      K8S_DEPLOYMENT_PATH: "k8s"
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -61,7 +64,7 @@ jobs:
 
       - name: Build & Tag & Push Images (Paketo)
         run: |
-          for SERVICE in user-service results-service move-service match-making-service; do
+          for SERVICE in $SERVICES; do
             LOCAL_IMAGE=$SERVICE:0.0.1-SNAPSHOT
             ACR_IMAGE=${{ secrets.ACR_NAME }}.azurecr.io/$SERVICE:$TAG
             ./gradlew :$SERVICE:bootBuildImage -Dspring-boot.build-image.imageName=$LOCAL_IMAGE
@@ -69,17 +72,21 @@ jobs:
             docker push $ACR_IMAGE
           done
 
-      - name: Deploy to AKS
+      - name: Create or Update Deployments
         run: |
-            for SERVICE in user-service results-service move-service match-making-service; do
-              IMAGE=${{ secrets.ACR_NAME }}.azurecr.io/$SERVICE:$TAG
-              echo "Deploying $SERVICE with $IMAGE ..."
-              sed "s|DOCKER_IMAGE_PLACEHOLDER|$IMAGE|g" k8s/$SERVICE.yaml | \
-                kubectl apply -n $ENV -f -
-            done
+          for SERVICE in $SERVICES; do
+            sed "s|DOCKER_IMAGE_PLACEHOLDER|$ACR_NAME.azurecr.io/$SERVICE|g; s|TAG_PLACEHOLDER|$TAG|g" \
+              $K8S_DEPLOYMENT_PATH/$SERVICE.yaml > temp-deployment.yaml
+          
+            # Apply the updated YAML file to the cluster
+            kubectl apply -f temp-deployment.yaml -n $ENV
+          
+            # Clean up the temporary file
+            rm temp-deployment.yaml
+          done
 
       - name: Verify Deployment Rollout
         run: |
-          for SERVICE in user-service results-service move-service match-making-service; do
+          for SERVICE in $SERVICES; do
             kubectl rollout status deployment/$SERVICE -n $ENV
           done
