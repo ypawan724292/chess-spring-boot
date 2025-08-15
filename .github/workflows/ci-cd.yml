@@ -55,18 +55,29 @@ jobs:
 
       - name: Build & Push Images (Paketo)
         run: |
-          ./gradlew :user-service:bootBuildImage \
-            --imageName=$ACR_NAME.azurecr.io/user-service:$TAG \
-            --publishImage
-          ./gradlew :results-service:bootBuildImage \
-            --imageName=$ACR_NAME.azurecr.io/results-service:$TAG \
-            --publishImage
-          ./gradlew :move-service:bootBuildImage \
-            --imageName=$ACR_NAME.azurecr.io/move-service:$TAG \
-            --publishImage
-          ./gradlew :match-making-service:bootBuildImage \
-            --imageName=$ACR_NAME.azurecr.io/match-making-service:$TAG \
-            --publishImage
+            # Optional: clear previous cache volumes (if persisted in CI runners)
+            docker volume rm $(docker volume ls -q | grep pack-cache) || true
+            
+            # Build images with cache disabled (avoids restorer failures)
+            ./gradlew :user-service:bootBuildImage \
+              --imageName=$ACR_NAME.azurecr.io/user-service:$TAG \
+              --publishImage \
+              -Dspring-boot.build-image.skip-cache=true
+            
+            ./gradlew :results-service:bootBuildImage \
+              --imageName=$ACR_NAME.azurecr.io/results-service:$TAG \
+              --publishImage \
+              -Dspring-boot.build-image.skip-cache=true
+            
+            ./gradlew :move-service:bootBuildImage \
+              --imageName=$ACR_NAME.azurecr.io/move-service:$TAG \
+              --publishImage \
+              -Dspring-boot.build-image.skip-cache=true
+            
+            ./gradlew :match-making-service:bootBuildImage \
+              --imageName=$ACR_NAME.azurecr.io/match-making-service:$TAG \
+              --publishImage \
+              -Dspring-boot.build-image.skip-cache=true
 
       - name: Get AKS Credentials
         run: |
