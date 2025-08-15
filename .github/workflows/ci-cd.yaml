@@ -59,12 +59,14 @@ jobs:
         run: echo ${{ secrets.ACR_PASSWORD }} | docker login ${{ secrets.ACR_NAME }}.azurecr.io -u ${{ secrets.ACR_NAME }} --password-stdin
 
 
-      - name: Build & Push Images (Paketo)
+      - name: Build & Tag & Push Images (Paketo)
         run: |
           for SERVICE in user-service results-service move-service match-making-service; do
-            IMAGE=${{ secrets.ACR_NAME }}.azurecr.io/$SERVICE:$TAG
-            ./gradlew :$SERVICE:bootBuildImage -Dspring-boot.build-image.imageName=$IMAGE
-            docker push $IMAGE
+            LOCAL_IMAGE=$SERVICE:0.0.1-SNAPSHOT
+            ACR_IMAGE=${{ secrets.ACR_NAME }}.azurecr.io/$SERVICE:$TAG
+            ./gradlew :$SERVICE:bootBuildImage -Dspring-boot.build-image.imageName=$LOCAL_IMAGE
+            docker tag $LOCAL_IMAGE $ACR_IMAGE
+            docker push $ACR_IMAGE
           done
 
       - name: Deploy to AKS
@@ -76,5 +78,5 @@ jobs:
       - name: Verify Deployment Rollout
         run: |
           for SERVICE in user-service results-service move-service match-making-service; do
-            kubectl rollout status deployment/$$SERVICE -n $ENV
+            kubectl rollout status deployment/$SERVICE -n $ENV
           done
