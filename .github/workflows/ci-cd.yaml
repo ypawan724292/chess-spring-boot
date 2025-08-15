@@ -50,11 +50,13 @@ jobs:
 
       - name: Build & Push Images using Paketo (with Spring Boot Gradle Plugin)
         run: |
-          for SERVICE in $SERVICES; do
-            ./gradlew :$SERVICE:bootBuildImage \
-              -Dspring-boot.build-image.imageName=$ACR_NAME.azurecr.io/$SERVICE:$TAG \
-              -Dspring-boot.build-image.pullPolicy=IF_NOT_PRESENT
-          done
+            for SERVICE in $SERVICES; do
+              IMAGE="$ACR_NAME.azurecr.io/$SERVICE:$TAG"
+              ./gradlew :$SERVICE:bootBuildImage \
+                -Dspring-boot.build-image.imageName=$IMAGE \
+                -Dspring-boot.build-image.pullPolicy=IF_NOT_PRESENT
+              docker push $IMAGE
+            done
 
       - name: Get AKS Credentials & Create Namespace
         run: |
