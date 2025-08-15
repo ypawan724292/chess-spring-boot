@@ -74,7 +74,7 @@ jobs:
             for SERVICE in user-service results-service move-service match-making-service; do
               IMAGE=${{ secrets.ACR_NAME }}.azurecr.io/$SERVICE:$TAG
               echo "Deploying $SERVICE with $IMAGE ..."
-              sed "s|DOCKER_IMAGE_PLACEHOLDER|$IMAGE|g" k8s/$SERVICE-deployment.yaml | \
+              sed "s|DOCKER_IMAGE_PLACEHOLDER|$IMAGE|g" k8s/$SERVICE.yaml | \
                 kubectl apply -n $ENV -f -
             done
 

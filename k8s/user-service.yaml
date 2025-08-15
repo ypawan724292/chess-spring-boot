@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: match-making-service
+  name: user-service-deployment
   labels:
-    app: match-making-service
+    app: user-service
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: match-making-service
+      app: user-service
   template:
     metadata:
       labels:
-        app: match-making-service
+        app: user-service
     spec:
       containers:
-        - name: match-making-service-container
+        - name: user-service-container
           image: DOCKER_IMAGE_PLACEHOLDER:TAG_PLACEHOLDER
           ports:
             - containerPort: 8080

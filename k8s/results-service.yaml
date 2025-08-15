@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: move-service
+  name: results-service-deployment
   labels:
-    app: move-service
+    app: results-service
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: move-service
+      app: results-service
   template:
     metadata:
       labels:
-        app: move-service
+        app: results-service
     spec:
       containers:
-        - name: move-service-container
+        - name: results-service-container
           image: DOCKER_IMAGE_PLACEHOLDER:TAG_PLACEHOLDER
           ports:
             - containerPort: 8080
