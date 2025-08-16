@@ -67,10 +67,18 @@ jobs:
           for SERVICE in $SERVICES; do
             LOCAL_IMAGE=$SERVICE:0.0.1-SNAPSHOT
             ACR_IMAGE=${{ secrets.ACR_NAME }}.azurecr.io/$SERVICE:$TAG
-            ./gradlew :$SERVICE:bootBuildImage -Dspring-boot.build-image.imageName=$LOCAL_IMAGE
+          
+            # Build image with Paketo targeting ARM64
+            ./gradlew :$SERVICE:bootBuildImage \
+            -Dspring-boot.build-image.imageName=$LOCAL_IMAGE \
+            -Dspring-boot.build-image.builder=paketobuildpacks/builder:base \
+            -Dspring-boot.build-image.runImage=paketobuildpacks/run:base-cnb \
+            -Dspring-boot.build-image.platform=linux/arm64
+          
+            # Retag and push to ACR
             docker tag $LOCAL_IMAGE $ACR_IMAGE
             docker push $ACR_IMAGE
-          done
+            done
 
       - name: Create or Update Deployments
         run: |
