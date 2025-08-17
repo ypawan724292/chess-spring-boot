@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RestController
 data class CreateUserRequest(val androidId: String)
 
 @RestController
-@RequestMapping("/users")
+@RequestMapping("api/v1/users")
 class UserController(
     private val createUserUseCase: CreateUserUseCase
 ) {
